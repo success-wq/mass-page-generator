@@ -1,4 +1,5 @@
-class SEOGenerator {
+async fetchGoogleSheetsData(spreadsheetUrl) {
+        // Fetch dataclass SEOGenerator {
     constructor() {
         this.form = document.getElementById('seoForm');
         this.resultsSection = document.getElementById('results');
