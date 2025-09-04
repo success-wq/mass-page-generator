@@ -1,4 +1,4 @@
-//v5 (referenced previous v18)
+//v6 (referenced previous v18)
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
