@@ -1,3 +1,4 @@
+//v18
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
@@ -538,3 +539,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 });
+
