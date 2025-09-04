@@ -1,4 +1,4 @@
-//v18
+//v26 (referenced to v18)
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
@@ -462,11 +462,6 @@ class SEOGenerator {
         } catch (error) {
             this.showStatus('Error generating pages: ' + error.message, 'error');
         }
-    }
-    
-    downloadCSV() {
-        // CSV functionality removed - no longer needed
-        this.showStatus('Export functionality has been removed', 'info');
     }
     
     showLoading(show) {
