@@ -57,20 +57,13 @@ class SEOGenerator {
         });
     }
     
+    // Legacy methods (keeping for backward compatibility)
     handlePromptTypesData(data) {
-        if (data.prompt_types && Array.isArray(data.prompt_types)) {
-            this.promptTypes = data.prompt_types;
-            this.updatePromptTypeOptions();
-            this.showStatus(`Loaded ${data.prompt_types.length} prompt types`, 'success');
-        }
+        this.handlePromptTypesWebhook(data);
     }
     
     handleKeywordsData(data) {
-        if (data.keywords && Array.isArray(data.keywords)) {
-            this.loadedKeywords = data.keywords;
-            this.displayKeywords(this.loadedKeywords);
-            this.showStatus(`Loaded ${data.keywords.length} keywords`, 'success');
-        }
+        this.handleKeywordsWebhook(data);
     }
     
     updatePromptTypeOptions() {
@@ -395,12 +388,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.dispatchEvent(event);
     };
     
-    // Example usage for testing (remove in production):
-    // window.loadPromptTypes({
-    //     prompt_types: ["service_areas_prompt", "location_pages_prompt"]
-    // });
-    // 
-    // window.loadKeywords({
-    //     keywords: ["windows installation", "door replacement", "roof repair"]
-    // });
+    // Expose Google Sheets integration function
+    window.loadGoogleSheetsData = function(spreadsheetUrl) {
+        return seoGenerator.fetchGoogleSheetsData(spreadsheetUrl);
+    };
+    
+    // Data will be automatically loaded from your Google Sheets on page load
+});
 });
