@@ -1,4 +1,4 @@
-//v6 (referenced previous v18)
+//v7 (referenced previous v18)
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
@@ -9,7 +9,6 @@ class SEOGenerator {
         this.matrixPreview = document.getElementById('matrixPreview');
         this.statusMessage = document.getElementById('statusMessage');
         this.submitBtn = document.getElementById('submitBtn');
-        this.generatePagesBtn = document.getElementById('generatePages');
         this.darkModeToggle = document.getElementById('darkModeToggle');
         this.keywordsDisplay = document.getElementById('keywordsDisplay');
         this.keywordsList = document.getElementById('keywordsList');
@@ -36,10 +35,6 @@ class SEOGenerator {
             this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
         }
         
-        if (this.generatePagesBtn) {
-            this.generatePagesBtn.addEventListener('click', () => this.generatePages());
-        }
-        
         if (this.darkModeToggle) {
             this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
         }
@@ -55,7 +50,6 @@ class SEOGenerator {
         this.loadInitialSheetsData();
     }
     
-    // Dark mode functionality
     initDarkMode() {
         const isDarkMode = localStorage.getItem('darkMode') === 'true';
         if (isDarkMode) {
@@ -70,7 +64,6 @@ class SEOGenerator {
         console.log('Dark mode toggled:', isDarkMode);
     }
     
-    // Google Sheets data loading
     async loadInitialSheetsData() {
         console.log('loadInitialSheetsData() called');
         
@@ -250,7 +243,6 @@ class SEOGenerator {
         }
     }
     
-    // Form submission and webhook
     async handleFormSubmit(e) {
         e.preventDefault();
         console.log('Form submitted');
@@ -262,10 +254,8 @@ class SEOGenerator {
         this.hideStatus();
         
         try {
-            // Send data to webhook first
             await this.sendToWebhook(formData);
             
-            // Then generate and display the matrix
             const matrix = this.generateMatrix(formData);
             this.currentMatrix = matrix;
             this.displayMatrix(matrix);
@@ -462,14 +452,13 @@ class SEOGenerator {
         this.matrixPreview.innerHTML = html;
     }
     
-    async generatePages() {
-        if (this.currentMatrix.length === 0) {
-            this.showStatus('No matrix data to generate pages from', 'error');
-            return;
+    showResults() {
+        if (this.resultsSection) {
+            this.resultsSection.style.display = 'block';
+            this.resultsSection.scrollIntoView({ behavior: 'smooth' });
         }
-        
-        this.showStatus('Feature not implemented yet', 'info');
-    // Utility functions
+    }
+    
     showLoading(show) {
         if (!this.submitBtn) return;
         
@@ -484,13 +473,6 @@ class SEOGenerator {
             if (btnText) btnText.style.display = 'inline-block';
             if (loader) loader.style.display = 'none';
             this.submitBtn.disabled = false;
-        }
-    }
-    
-    showResults() {
-        if (this.resultsSection) {
-            this.resultsSection.style.display = 'block';
-            this.resultsSection.scrollIntoView({ behavior: 'smooth' });
         }
     }
     
@@ -513,7 +495,6 @@ class SEOGenerator {
     }
 }
 
-// Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOMContentLoaded event fired');
     
