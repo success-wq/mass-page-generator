@@ -1,4 +1,4 @@
-//v4 (referenced previous v18)
+//v5 (referenced previous v18)
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
@@ -469,8 +469,6 @@ class SEOGenerator {
         }
         
         this.showStatus('Feature not implemented yet', 'info');
-    }
-    
     // Utility functions
     showLoading(show) {
         if (!this.submitBtn) return;
