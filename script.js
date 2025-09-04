@@ -1,5 +1,7 @@
 class SEOGenerator {
     constructor() {
+        console.log('SEOGenerator constructor called');
+        
         this.form = document.getElementById('seoForm');
         this.resultsSection = document.getElementById('results');
         this.matrixPreview = document.getElementById('matrixPreview');
@@ -16,71 +18,134 @@ class SEOGenerator {
         this.currentMatrix = [];
         this.loadedKeywords = [];
         this.promptTypes = [];
+        this.sheetsData = {
+            docNames: [],
+            keywordsMap: {}
+        };
         
+        console.log('About to call init()');
         this.init();
     }
     
     init() {
+        console.log('SEOGenerator init() called');
+        
         this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
         this.generatePagesBtn.addEventListener('click', () => this.generatePages());
         this.downloadCsvBtn.addEventListener('click', () => this.downloadCSV());
         this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
         this.promptTypeSelect.addEventListener('change', () => this.handlePromptTypeChange());
         
-        // Initialize dark mode from localStorage
-        this.initDarkMode();
+        console.log('Event listeners attached');
         
-        // Initialize webhook listeners
+        this.initDarkMode();
         this.initWebhookListeners();
         
-        // Set initial state
-        this.showStatus('Waiting for webhook data...', 'info');
+        this.showStatus('Loading data from Google Apps Script...', 'info');
+        
+        console.log('About to load initial sheets data');
+        this.loadInitialSheetsData();
     }
     
-    initWebhookListeners() {
-        // Listen for prompt types webhook
-        window.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'prompt_types_data') {
-                this.handlePromptTypesData(event.data.payload);
-            } else if (event.data && event.data.type === 'keywords_data') {
-                this.handleKeywordsData(event.data.payload);
+    async loadInitialSheetsData() {
+        console.log('loadInitialSheetsData() called');
+        
+        const webAppUrl = 'https://script.google.com/macros/s/AKfycbxNLlQ7B4grAz0Tf9E5NYa4SoeUaLDFDpTtMGbli--WbXhytpO4eZik4ho4oCbuwtuI/exec';
+        
+        try {
+            console.log('Calling fetchFromWebApp with URL:', webAppUrl);
+            await this.fetchFromWebApp(webAppUrl);
+        } catch (error) {
+            console.error('Failed to load data from web app:', error);
+            this.showStatus('Failed to load data from Google Sheets Web App. Please check the deployment.', 'error');
+        }
+    }
+    
+    async fetchFromWebApp(webAppUrl) {
+        console.log('fetchFromWebApp() called with:', webAppUrl);
+        
+        try {
+            this.showStatus('Fetching data from Google Apps Script...', 'info');
+            
+            console.log('About to call fetch...');
+            const response = await fetch(webAppUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            console.log('Fetch response received:', response.status, response.ok);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-        });
-        
-        // Also listen for custom events
-        document.addEventListener('promptTypesData', (event) => {
-            this.handlePromptTypesData(event.detail);
-        });
-        
-        document.addEventListener('keywordsData', (event) => {
-            this.handleKeywordsData(event.detail);
-        });
+            
+            const jsonData = await response.json();
+            console.log('JSON data received:', jsonData);
+            
+            if (jsonData.error) {
+                throw new Error(jsonData.error);
+            }
+            
+            this.mapWebAppDataToUI(jsonData);
+            this.showStatus('Successfully loaded data from Google Apps Script!', 'success');
+            
+        } catch (error) {
+            console.error('fetchFromWebApp error:', error);
+            throw error;
+        }
     }
     
-    // Legacy methods (keeping for backward compatibility)
-    handlePromptTypesData(data) {
-        this.handlePromptTypesWebhook(data);
+    mapWebAppDataToUI(jsonData) {
+        console.log('mapWebAppDataToUI called with:', jsonData);
+        
+        if (!jsonData.prompt_types || !Array.isArray(jsonData.prompt_types)) {
+            throw new Error('Invalid data format: prompt_types array not found');
+        }
+        
+        if (!jsonData.keywords_map || typeof jsonData.keywords_map !== 'object') {
+            throw new Error('Invalid data format: keywords_map object not found');
+        }
+        
+        this.sheetsData = {
+            docNames: jsonData.prompt_types,
+            keywordsMap: jsonData.keywords_map
+        };
+        
+        console.log('Mapped data:', this.sheetsData);
+        this.updatePromptTypesFromSheets();
     }
     
-    handleKeywordsData(data) {
-        this.handleKeywordsWebhook(data);
+    updatePromptTypesFromSheets() {
+        console.log('updatePromptTypesFromSheets called');
+        
+        if (this.sheetsData.docNames.length === 0) {
+            this.showStatus('No prompt types found in Google Sheets', 'error');
+            return;
+        }
+        
+        this.promptTypes = [...this.sheetsData.docNames];
+        this.updatePromptTypeOptions();
+        
+        this.showStatus(`Loaded ${this.promptTypes.length} prompt types from Google Sheets`, 'success');
     }
     
     updatePromptTypeOptions() {
-        // Clear existing options
+        console.log('updatePromptTypeOptions called with:', this.promptTypes);
+        
         this.promptTypeSelect.innerHTML = '<option value="">Select prompt type...</option>';
         
-        // Add loaded prompt types
         this.promptTypes.forEach(promptType => {
             const option = document.createElement('option');
             option.value = promptType;
             option.textContent = this.formatPromptTypeName(promptType);
             this.promptTypeSelect.appendChild(option);
+            console.log(`Added option: ${promptType}`);
         });
     }
     
     formatPromptTypeName(docName) {
-        // Convert doc_name to human readable format
         return docName.replace(/_/g, ' ')
             .split(' ')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -100,16 +165,22 @@ class SEOGenerator {
         localStorage.setItem('darkMode', isDarkMode);
     }
     
+    initWebhookListeners() {
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type && event.data.type.startsWith('webhook_')) {
+                console.log('Received webhook message:', event.data);
+            }
+        });
+    }
+    
     handlePromptTypeChange() {
         const selectedPrompt = this.promptTypeSelect.value;
         
         if (selectedPrompt) {
-            // Check if we have sheets data for this prompt type
             if (this.sheetsData && this.sheetsData.keywordsMap[selectedPrompt]) {
                 this.loadKeywordsForSelectedPrompt(selectedPrompt);
             } else {
                 this.showStatus(`Selected prompt type: ${this.formatPromptTypeName(selectedPrompt)}`, 'info');
-                // Keywords will be loaded separately via webhook if sheets data not available
             }
         } else {
             this.keywordsDisplay.style.display = 'none';
@@ -117,269 +188,7 @@ class SEOGenerator {
         }
     }
     
-    async handleFormSubmit(e) {
-        e.preventDefault();
-        
-        const formData = this.getFormData();
-        if (!this.validateFormData(formData)) return;
-        
-        this.showLoading(true);
-        this.hideStatus();
-        
-        try {
-            const matrix = this.generateMatrix(formData);
-            this.currentMatrix = matrix;
-            this.displayMatrix(matrix);
-            this.showResults();
-            this.showStatus('Matrix generated successfully!', 'success');
-        } catch (error) {
-            this.showStatus('Error generating matrix: ' + error.message, 'error');
-        } finally {
-            this.showLoading(false);
-        }
-    }
-    
-    getFormData() {
-        return {
-            promptType: this.promptTypeSelect.value.trim(),
-            cityState: document.getElementById('cityState').value.trim(),
-            websiteUrl: document.getElementById('websiteUrl').value.trim(),
-            keywords: this.loadedKeywords
-        };
-    }
-    
-    validateFormData(data) {
-        if (!data.promptType) {
-            this.showStatus('Please select a prompt type', 'error');
-            return false;
-        }
-        
-        if (!data.cityState) {
-            this.showStatus('Please enter city and state', 'error');
-            return false;
-        }
-        
-        if (!data.websiteUrl) {
-            this.showStatus('Please enter your website URL', 'error');
-            return false;
-        }
-        
-        if (!data.keywords || data.keywords.length === 0) {
-            this.showStatus('No keywords loaded. Please load keywords via webhook first.', 'error');
-            return false;
-        }
-        
-        return true;
-    }
-    
-    generateMatrix(data) {
-        const { cityState, keywords, websiteUrl } = data;
-        
-        // Parse city and state
-        const cityStateParts = cityState.split(',').map(part => part.trim());
-        const city = cityStateParts[0];
-        const state = cityStateParts[1] || '';
-        
-        // Clean website URL (remove trailing slash)
-        const baseUrl = websiteUrl.replace(/\/$/, '');
-        
-        // Use loaded keywords array
-        const keywordList = keywords;
-        
-        // Generate matrix combinations
-        const matrix = [];
-        
-        // Add header row
-        matrix.push({
-            type: 'header',
-            city: 'City',
-            state: 'State', 
-            keyword: 'Service Keyword',
-            urlSlug: 'URL Slug',
-            fullUrl: 'Full URL',
-            pageTitle: 'Page Title'
-        });
-        
-        // Generate combinations
-        keywordList.forEach(keyword => {
-            const urlSlug = this.generateUrlSlug(city, state, keyword);
-            const fullUrl = `${baseUrl}${urlSlug}`;
-            const pageTitle = this.generatePageTitle(city, state, keyword);
-            
-            matrix.push({
-                type: 'data',
-                city: city,
-                state: state,
-                keyword: keyword,
-                urlSlug: urlSlug,
-                fullUrl: fullUrl,
-                pageTitle: pageTitle
-            });
-        });
-        
-        return matrix;
-    }
-    
-    generateUrlSlug(city, state, keyword) {
-        const cleanCity = city.toLowerCase().replace(/[^a-z0-9]/g, '-');
-        const cleanKeyword = keyword.toLowerCase()
-            .replace(/[^a-z0-9]/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
-            
-        return `/locations/${cleanCity}/${cleanKeyword}`;
-    }
-    
-    generatePageTitle(city, state, keyword) {
-        const capitalizedCity = city.charAt(0).toUpperCase() + city.slice(1).toLowerCase();
-        const capitalizedKeyword = keyword.charAt(0).toUpperCase() + keyword.slice(1).toLowerCase();
-        
-        return `${capitalizedKeyword} in ${capitalizedCity}, ${state}`;
-    }
-    
-    displayMatrix(matrix) {
-        if (matrix.length === 0) {
-            this.matrixPreview.innerHTML = '<p>No data generated</p>';
-            return;
-        }
-        
-        let html = '<div class="matrix-grid" style="grid-template-columns: repeat(6, 1fr);">';
-        
-        matrix.forEach(row => {
-            const isHeader = row.type === 'header';
-            const className = isHeader ? 'matrix-item matrix-header' : 'matrix-item';
-            
-            html += `
-                <div class="${className}">${row.city}</div>
-                <div class="${className}">${row.state}</div>
-                <div class="${className}">${row.keyword}</div>
-                <div class="${className}">${row.urlSlug}</div>
-                <div class="${className}">${row.fullUrl || 'Full URL'}</div>
-                <div class="${className}">${row.pageTitle}</div>
-            `;
-        });
-        
-        html += '</div>';
-        
-        // Add summary
-        const dataRows = matrix.filter(row => row.type === 'data');
-        html += `<p><strong>Total combinations generated: ${dataRows.length}</strong></p>`;
-        
-        this.matrixPreview.innerHTML = html;
-    }
-    
-    async generatePages() {
-        if (this.currentMatrix.length === 0) {
-            this.showStatus('No matrix data to generate pages from', 'error');
-            return;
-        }
-        
-        const websiteUrl = document.getElementById('websiteUrl').value.trim();
-        const apiEndpoint = this.apiEndpoint || '/api/generate-pages';
-        
-        try {
-            this.showStatus('Generating pages on your website...', 'info');
-            
-            const requestData = {
-                matrix: this.currentMatrix,
-                websiteUrl: websiteUrl,
-                promptType: this.promptTypeSelect.value,
-                timestamp: new Date().toISOString()
-            };
-            
-            // Send to backend for processing (Google Sheets connection handled there)
-            const response = await fetch(apiEndpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                this.showStatus(`Successfully generated ${result.pagesCreated || 'multiple'} pages on your website!`, 'success');
-                
-                // Send outbound webhook notification if configured
-                await this.notifyPageGeneration(requestData, result);
-                
-            } else {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-        } catch (error) {
-            this.showStatus('Error generating pages: ' + error.message, 'error');
-        }
-    }
-    
-    async notifyPageGeneration(requestData, result) {
-        // Send webhook notification about page generation
-        
-        const notificationData = {
-            event: 'pages_generated',
-            matrix_count: this.currentMatrix.length - 1, // Subtract header row
-            website_url: requestData.websiteUrl,
-            prompt_type: requestData.promptType,
-            pages_created: result.pagesCreated,
-            timestamp: requestData.timestamp,
-            status: 'success'
-        };
-        
-        // Send to configured notification webhooks
-        const notificationEndpoints = [
-            // Add your notification webhook URLs here
-            // 'https://your-monitoring-service.com/webhook',
-            // 'https://your-analytics-service.com/webhook'
-        ];
-        
-        for (const endpoint of notificationEndpoints) {
-            try {
-                await this.sendOutboundWebhook(endpoint, notificationData);
-            } catch (error) {
-                console.warn('Failed to send notification webhook:', error);
-            }
-        }
-    }
-    
-    downloadCSV() {
-        if (this.currentMatrix.length === 0) {
-            this.showStatus('No matrix data to download', 'error');
-            return;
-        }
-        
-        // Convert matrix to CSV
-        const csvContent = this.currentMatrix.map(row => 
-            [row.city, row.state, row.keyword, row.urlSlug, row.fullUrl || '', row.pageTitle]
-                .map(field => `"${field}"`)
-                .join(',')
-        ).join('\n');
-        
-        // Create and download file
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `seo-matrix-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        this.showStatus('CSV file downloaded successfully!', 'success');
-    }
-    
-    displayKeywords(keywords) {
-        this.keywordCount.textContent = `${keywords.length} keywords`;
-        
-        const keywordTags = keywords.map(keyword => 
-            `<span class="keyword-tag">${keyword}</span>`
-        ).join('');
-        
-        this.keywordsList.innerHTML = keywordTags;
-        this.keywordsDisplay.style.display = 'block';
-    }
-    
     loadKeywordsForSelectedPrompt(selectedDocName) {
-        // Load keywords for the selected prompt type from sheets data
         if (this.sheetsData.keywordsMap[selectedDocName]) {
             this.loadedKeywords = [...this.sheetsData.keywordsMap[selectedDocName]];
             this.displayKeywords(this.loadedKeywords);
@@ -391,74 +200,15 @@ class SEOGenerator {
         }
     }
     
-    showLoading(show) {
-        const btnText = this.submitBtn.querySelector('.btn-text');
-        const loader = this.submitBtn.querySelector('.loader');
+    displayKeywords(keywords) {
+        this.keywordCount.textContent = `${keywords.length} keywords`;
         
-        if (show) {
-            btnText.style.display = 'none';
-            loader.style.display = 'inline-block';
-            this.submitBtn.disabled = true;
-        } else {
-            btnText.style.display = 'inline-block';
-            loader.style.display = 'none';
-            this.submitBtn.disabled = false;
-        }
-    }
-    
-    showResults() {
-        this.resultsSection.style.display = 'block';
-        this.resultsSection.scrollIntoView({ behavior: 'smooth' });
-    }
-    
-    showStatus(message, type) {
-        this.statusMessage.textContent = message;
-        this.statusMessage.className = `status-message ${type}`;
-        this.statusMessage.style.display = 'block';
+        const keywordTags = keywords.map(keyword => 
+            `<span class="keyword-tag">${keyword}</span>`
+        ).join('');
         
-        // Auto-hide success messages after 5 seconds
-        if (type === 'success') {
-            setTimeout(() => this.hideStatus(), 5000);
-        }
-    }
-    
-    hideStatus() {
-        this.statusMessage.style.display = 'none';
-    }
-    
-    // Legacy methods (keeping for backward compatibility)
-    handlePromptTypesData(data) {
-        this.handlePromptTypesWebhook(data);
-    }
-    
-    handleKeywordsData(data) {
-        this.handleKeywordsWebhook(data);
-    }
-}
-    
-    initDarkMode() {
-        const isDarkMode = localStorage.getItem('darkMode') === 'true';
-        if (isDarkMode) {
-            document.body.classList.add('dark-mode');
-        }
-    }
-    
-    toggleDarkMode() {
-        document.body.classList.toggle('dark-mode');
-        const isDarkMode = document.body.classList.contains('dark-mode');
-        localStorage.setItem('darkMode', isDarkMode);
-    }
-    
-    handlePromptTypeChange() {
-        const selectedPrompt = this.promptTypeSelect.value;
-        
-        if (selectedPrompt) {
-            this.showStatus(`Selected prompt type: ${this.formatPromptTypeName(selectedPrompt)}`, 'info');
-            // Keywords will be loaded separately via webhook
-        } else {
-            this.keywordsDisplay.style.display = 'none';
-            this.loadedKeywords = [];
-        }
+        this.keywordsList.innerHTML = keywordTags;
+        this.keywordsDisplay.style.display = 'block';
     }
     
     async handleFormSubmit(e) {
@@ -509,7 +259,7 @@ class SEOGenerator {
         }
         
         if (!data.keywords || data.keywords.length === 0) {
-            this.showStatus('No keywords loaded. Please load keywords via webhook first.', 'error');
+            this.showStatus('No keywords loaded. Please select a prompt type first.', 'error');
             return false;
         }
         
@@ -519,21 +269,13 @@ class SEOGenerator {
     generateMatrix(data) {
         const { cityState, keywords, websiteUrl } = data;
         
-        // Parse city and state
         const cityStateParts = cityState.split(',').map(part => part.trim());
         const city = cityStateParts[0];
         const state = cityStateParts[1] || '';
         
-        // Clean website URL (remove trailing slash)
         const baseUrl = websiteUrl.replace(/\/$/, '');
-        
-        // Use loaded keywords array
-        const keywordList = keywords;
-        
-        // Generate matrix combinations
         const matrix = [];
         
-        // Add header row
         matrix.push({
             type: 'header',
             city: 'City',
@@ -544,8 +286,7 @@ class SEOGenerator {
             pageTitle: 'Page Title'
         });
         
-        // Generate combinations
-        keywordList.forEach(keyword => {
+        keywords.forEach(keyword => {
             const urlSlug = this.generateUrlSlug(city, state, keyword);
             const fullUrl = `${baseUrl}${urlSlug}`;
             const pageTitle = this.generatePageTitle(city, state, keyword);
@@ -605,7 +346,6 @@ class SEOGenerator {
         
         html += '</div>';
         
-        // Add summary
         const dataRows = matrix.filter(row => row.type === 'data');
         html += `<p><strong>Total combinations generated: ${dataRows.length}</strong></p>`;
         
@@ -619,22 +359,24 @@ class SEOGenerator {
         }
         
         const websiteUrl = document.getElementById('websiteUrl').value.trim();
+        const apiEndpoint = '/api/generate-pages';
         
         try {
             this.showStatus('Generating pages on your website...', 'info');
             
-            // Send to backend for processing (Google Sheets connection handled there)
-            const response = await fetch('/api/generate-pages', {
+            const requestData = {
+                matrix: this.currentMatrix,
+                websiteUrl: websiteUrl,
+                promptType: this.promptTypeSelect.value,
+                timestamp: new Date().toISOString()
+            };
+            
+            const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    matrix: this.currentMatrix,
-                    websiteUrl: websiteUrl,
-                    promptType: this.promptTypeSelect.value,
-                    timestamp: new Date().toISOString()
-                })
+                body: JSON.stringify(requestData)
             });
             
             if (response.ok) {
@@ -654,14 +396,12 @@ class SEOGenerator {
             return;
         }
         
-        // Convert matrix to CSV
         const csvContent = this.currentMatrix.map(row => 
             [row.city, row.state, row.keyword, row.urlSlug, row.fullUrl || '', row.pageTitle]
                 .map(field => `"${field}"`)
                 .join(',')
         ).join('\n');
         
-        // Create and download file
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -673,17 +413,6 @@ class SEOGenerator {
         window.URL.revokeObjectURL(url);
         
         this.showStatus('CSV file downloaded successfully!', 'success');
-    }
-    
-    displayKeywords(keywords) {
-        this.keywordCount.textContent = `${keywords.length} keywords`;
-        
-        const keywordTags = keywords.map(keyword => 
-            `<span class="keyword-tag">${keyword}</span>`
-        ).join('');
-        
-        this.keywordsList.innerHTML = keywordTags;
-        this.keywordsDisplay.style.display = 'block';
     }
     
     showLoading(show) {
@@ -711,7 +440,6 @@ class SEOGenerator {
         this.statusMessage.className = `status-message ${type}`;
         this.statusMessage.style.display = 'block';
         
-        // Auto-hide success messages after 5 seconds
         if (type === 'success') {
             setTimeout(() => this.hideStatus(), 5000);
         }
@@ -724,9 +452,19 @@ class SEOGenerator {
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
-    const seoGenerator = new SEOGenerator();
+    console.log('DOMContentLoaded event fired');
     
-    // Expose global functions for external webhook integration
+    try {
+        const seoGenerator = new SEOGenerator();
+        console.log('SEOGenerator instance created successfully');
+        
+        window.seoGenerator = seoGenerator;
+        
+    } catch (error) {
+        console.error('Error creating SEOGenerator:', error);
+        console.error('Error stack:', error.stack);
+    }
+    
     window.loadPromptTypes = function(data) {
         const event = new CustomEvent('promptTypesData', { detail: data });
         document.dispatchEvent(event);
@@ -737,11 +475,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.dispatchEvent(event);
     };
     
-    // Expose Google Sheets integration function
     window.loadGoogleSheetsData = function(spreadsheetUrl) {
-        return seoGenerator.fetchGoogleSheetsData(spreadsheetUrl);
+        if (window.seoGenerator) {
+            return window.seoGenerator.fetchGoogleSheetsData(spreadsheetUrl);
+        } else {
+            console.error('SEOGenerator not initialized');
+        }
     };
-    
-    // Data will be automatically loaded from your Google Sheets on page load
-});
 });
