@@ -1,4 +1,4 @@
-//v7 (referenced previous v18)
+//v8 (referenced previous v18)
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
@@ -434,14 +434,12 @@ class SEOGenerator {
             const isHeader = row.type === 'header';
             const className = isHeader ? 'matrix-item matrix-header' : 'matrix-item';
             
-            html += `
-                <div class="${className}">${row.city}</div>
-                <div class="${className}">${row.state}</div>
-                <div class="${className}">${row.keyword}</div>
-                <div class="${className}">${row.urlSlug}</div>
-                <div class="${className}">${row.fullUrl || 'Full URL'}</div>
-                <div class="${className}">${row.pageTitle}</div>
-            `;
+            html += '<div class="' + className + '">' + row.city + '</div>';
+            html += '<div class="' + className + '">' + row.state + '</div>';
+            html += '<div class="' + className + '">' + row.keyword + '</div>';
+            html += '<div class="' + className + '">' + row.urlSlug + '</div>';
+            html += '<div class="' + className + '">' + (row.fullUrl || 'Full URL') + '</div>';
+            html += '<div class="' + className + '">' + row.pageTitle + '</div>';
         });
         
         html += '</div>';
