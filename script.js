@@ -50,7 +50,7 @@ class SEOGenerator {
     async loadInitialSheetsData() {
         console.log('loadInitialSheetsData() called');
         
-        const webAppUrl = 'https://script.google.com/macros/s/AKfycbxNLlQ7B4grAz0Tf9E5NYa4SoeUaLDFDpTtMGbli--WbXhytpO4eZik4ho4oCbuwtuI/exec';
+        const webAppUrl = 'https://script.google.com/macros/s/AKfycbxjKNjowmwUDYVmZONXf6NRUTNif4GmUQT9iN8C39sCV-mF6U4HpjvUlrmps09NUYAl/exec';
         
         try {
             console.log('Calling fetchFromWebApp with URL:', webAppUrl);
@@ -67,34 +67,89 @@ class SEOGenerator {
         try {
             this.showStatus('Fetching data from Google Apps Script...', 'info');
             
-            console.log('About to call fetch...');
-            const response = await fetch(webAppUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
+            // Use JSONP to bypass CORS restrictions
+            console.log('Using JSONP to bypass CORS...');
+            const data = await this.fetchViaJSONP(webAppUrl);
             
-            console.log('Fetch response received:', response.status, response.ok);
+            console.log('JSONP data received:', data);
             
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            if (data.error) {
+                throw new Error(data.error);
             }
             
-            const jsonData = await response.json();
-            console.log('JSON data received:', jsonData);
-            
-            if (jsonData.error) {
-                throw new Error(jsonData.error);
-            }
-            
-            this.mapWebAppDataToUI(jsonData);
+            this.mapWebAppDataToUI(data);
             this.showStatus('Successfully loaded data from Google Apps Script!', 'success');
             
         } catch (error) {
             console.error('fetchFromWebApp error:', error);
+            
+            // Fallback: try direct fetch in case CORS is fixed
+            console.log('JSONP failed, trying direct fetch as fallback...');
+            try {
+                const response = await fetch(webAppUrl + '?callback=?', {
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                console.log('Fallback fetch response:', response);
+            } catch (fetchError) {
+                console.error('Fallback fetch also failed:', fetchError);
+            }
+            
             throw error;
         }
+    }
+    
+    fetchViaJSONP(url) {
+        return new Promise((resolve, reject) => {
+            // Create a unique callback name
+            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+            
+            // Add callback parameter to URL
+            const urlWithCallback = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName;
+            
+            console.log('JSONP URL:', urlWithCallback);
+            
+            // Create script element
+            const script = document.createElement('script');
+            script.src = urlWithCallback;
+            
+            // Set up callback function
+            window[callbackName] = function(data) {
+                console.log('JSONP callback received:', data);
+                resolve(data);
+                
+                // Cleanup
+                document.head.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Handle errors
+            script.onerror = function() {
+                console.error('JSONP script failed to load');
+                reject(new Error('JSONP request failed'));
+                
+                // Cleanup
+                document.head.removeChild(script);
+                delete window[callbackName];
+            };
+            
+            // Add script to DOM to trigger request
+            document.head.appendChild(script);
+            
+            // Set timeout
+            setTimeout(() => {
+                if (window[callbackName]) {
+                    console.error('JSONP request timed out');
+                    reject(new Error('JSONP request timed out'));
+                    
+                    // Cleanup
+                    if (document.head.contains(script)) {
+                        document.head.removeChild(script);
+                    }
+                    delete window[callbackName];
+                }
+            }, 10000); // 10 second timeout
+        });
     }
     
     mapWebAppDataToUI(jsonData) {
