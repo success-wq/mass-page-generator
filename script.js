@@ -1,20 +1,22 @@
+//v4 (referenced previous v18)
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
         
+        // Get DOM elements
         this.form = document.getElementById('seoForm');
         this.resultsSection = document.getElementById('results');
         this.matrixPreview = document.getElementById('matrixPreview');
         this.statusMessage = document.getElementById('statusMessage');
         this.submitBtn = document.getElementById('submitBtn');
         this.generatePagesBtn = document.getElementById('generatePages');
-        this.downloadCsvBtn = document.getElementById('downloadCsv');
         this.darkModeToggle = document.getElementById('darkModeToggle');
         this.keywordsDisplay = document.getElementById('keywordsDisplay');
         this.keywordsList = document.getElementById('keywordsList');
         this.keywordCount = document.getElementById('keywordCount');
         this.promptTypeSelect = document.getElementById('promptType');
         
+        // Initialize data
         this.currentMatrix = [];
         this.loadedKeywords = [];
         this.promptTypes = [];
@@ -23,30 +25,52 @@ class SEOGenerator {
             keywordsMap: {}
         };
         
-        console.log('About to call init()');
         this.init();
     }
     
     init() {
         console.log('SEOGenerator init() called');
         
-        this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
-        this.generatePagesBtn.addEventListener('click', () => this.generatePages());
-        this.downloadCsvBtn.addEventListener('click', () => this.downloadCSV());
-        this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
-        this.promptTypeSelect.addEventListener('change', () => this.handlePromptTypeChange());
+        // Add event listeners with safety checks
+        if (this.form) {
+            this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
+        }
+        
+        if (this.generatePagesBtn) {
+            this.generatePagesBtn.addEventListener('click', () => this.generatePages());
+        }
+        
+        if (this.darkModeToggle) {
+            this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
+        }
+        
+        if (this.promptTypeSelect) {
+            this.promptTypeSelect.addEventListener('change', () => this.handlePromptTypeChange());
+        }
         
         console.log('Event listeners attached');
         
+        // Initialize features
         this.initDarkMode();
-        this.initWebhookListeners();
-        
-        this.showStatus('Loading data from Google Apps Script...', 'info');
-        
-        console.log('About to load initial sheets data');
         this.loadInitialSheetsData();
     }
     
+    // Dark mode functionality
+    initDarkMode() {
+        const isDarkMode = localStorage.getItem('darkMode') === 'true';
+        if (isDarkMode) {
+            document.body.classList.add('dark-mode');
+        }
+    }
+    
+    toggleDarkMode() {
+        document.body.classList.toggle('dark-mode');
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        localStorage.setItem('darkMode', isDarkMode);
+        console.log('Dark mode toggled:', isDarkMode);
+    }
+    
+    // Google Sheets data loading
     async loadInitialSheetsData() {
         console.log('loadInitialSheetsData() called');
         
@@ -54,6 +78,7 @@ class SEOGenerator {
         
         try {
             console.log('Calling fetchFromWebApp with URL:', webAppUrl);
+            this.showStatus('Loading data from Google Apps Script...', 'info');
             await this.fetchFromWebApp(webAppUrl);
         } catch (error) {
             console.error('Failed to load data from web app:', error);
@@ -62,15 +87,10 @@ class SEOGenerator {
     }
     
     async fetchFromWebApp(webAppUrl) {
-        console.log('fetchFromWebApp() called with:', webAppUrl);
+        console.log('fetchFromWebApp() called');
         
         try {
-            this.showStatus('Fetching data from Google Apps Script...', 'info');
-            
-            // Use JSONP to bypass CORS restrictions
-            console.log('Using JSONP to bypass CORS...');
             const data = await this.fetchViaJSONP(webAppUrl);
-            
             console.log('JSONP data received:', data);
             
             if (data.error) {
@@ -82,73 +102,46 @@ class SEOGenerator {
             
         } catch (error) {
             console.error('fetchFromWebApp error:', error);
-            
-            // Fallback: try direct fetch in case CORS is fixed
-            console.log('JSONP failed, trying direct fetch as fallback...');
-            try {
-                const response = await fetch(webAppUrl + '?callback=?', {
-                    method: 'GET',
-                    mode: 'no-cors'
-                });
-                console.log('Fallback fetch response:', response);
-            } catch (fetchError) {
-                console.error('Fallback fetch also failed:', fetchError);
-            }
-            
             throw error;
         }
     }
     
     fetchViaJSONP(url) {
         return new Promise((resolve, reject) => {
-            // Create a unique callback name
             const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-            
-            // Add callback parameter to URL
             const urlWithCallback = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName;
             
             console.log('JSONP URL:', urlWithCallback);
             
-            // Create script element
             const script = document.createElement('script');
             script.src = urlWithCallback;
             
-            // Set up callback function
             window[callbackName] = function(data) {
                 console.log('JSONP callback received:', data);
                 resolve(data);
-                
-                // Cleanup
                 document.head.removeChild(script);
                 delete window[callbackName];
             };
             
-            // Handle errors
             script.onerror = function() {
                 console.error('JSONP script failed to load');
                 reject(new Error('JSONP request failed'));
-                
-                // Cleanup
                 document.head.removeChild(script);
                 delete window[callbackName];
             };
             
-            // Add script to DOM to trigger request
             document.head.appendChild(script);
             
-            // Set timeout
             setTimeout(() => {
                 if (window[callbackName]) {
                     console.error('JSONP request timed out');
                     reject(new Error('JSONP request timed out'));
-                    
-                    // Cleanup
                     if (document.head.contains(script)) {
                         document.head.removeChild(script);
                     }
                     delete window[callbackName];
                 }
-            }, 10000); // 10 second timeout
+            }, 10000);
         });
     }
     
@@ -189,6 +182,8 @@ class SEOGenerator {
     updatePromptTypeOptions() {
         console.log('updatePromptTypeOptions called with:', this.promptTypes);
         
+        if (!this.promptTypeSelect) return;
+        
         this.promptTypeSelect.innerHTML = '<option value="">Select prompt type...</option>';
         
         this.promptTypes.forEach(promptType => {
@@ -207,27 +202,6 @@ class SEOGenerator {
             .join(' ');
     }
     
-    initDarkMode() {
-        const isDarkMode = localStorage.getItem('darkMode') === 'true';
-        if (isDarkMode) {
-            document.body.classList.add('dark-mode');
-        }
-    }
-    
-    toggleDarkMode() {
-        document.body.classList.toggle('dark-mode');
-        const isDarkMode = document.body.classList.contains('dark-mode');
-        localStorage.setItem('darkMode', isDarkMode);
-    }
-    
-    initWebhookListeners() {
-        window.addEventListener('message', (event) => {
-            if (event.data && event.data.type && event.data.type.startsWith('webhook_')) {
-                console.log('Received webhook message:', event.data);
-            }
-        });
-    }
-    
     handlePromptTypeChange() {
         const selectedPrompt = this.promptTypeSelect.value;
         
@@ -238,7 +212,9 @@ class SEOGenerator {
                 this.showStatus(`Selected prompt type: ${this.formatPromptTypeName(selectedPrompt)}`, 'info');
             }
         } else {
-            this.keywordsDisplay.style.display = 'none';
+            if (this.keywordsDisplay) {
+                this.keywordsDisplay.style.display = 'none';
+            }
             this.loadedKeywords = [];
         }
     }
@@ -249,25 +225,35 @@ class SEOGenerator {
             this.displayKeywords(this.loadedKeywords);
             this.showStatus(`Loaded ${this.loadedKeywords.length} keywords for "${selectedDocName}"`, 'success');
         } else {
-            this.keywordsDisplay.style.display = 'none';
+            if (this.keywordsDisplay) {
+                this.keywordsDisplay.style.display = 'none';
+            }
             this.loadedKeywords = [];
             this.showStatus(`No keywords found for "${selectedDocName}"`, 'error');
         }
     }
     
     displayKeywords(keywords) {
-        this.keywordCount.textContent = `${keywords.length} keywords`;
+        if (this.keywordCount) {
+            this.keywordCount.textContent = `${keywords.length} keywords`;
+        }
         
-        const keywordTags = keywords.map(keyword => 
-            `<span class="keyword-tag">${keyword}</span>`
-        ).join('');
+        if (this.keywordsList) {
+            const keywordTags = keywords.map(keyword => 
+                `<span class="keyword-tag">${keyword}</span>`
+            ).join('');
+            this.keywordsList.innerHTML = keywordTags;
+        }
         
-        this.keywordsList.innerHTML = keywordTags;
-        this.keywordsDisplay.style.display = 'block';
+        if (this.keywordsDisplay) {
+            this.keywordsDisplay.style.display = 'block';
+        }
     }
     
+    // Form submission and webhook
     async handleFormSubmit(e) {
         e.preventDefault();
+        console.log('Form submitted');
         
         const formData = this.getFormData();
         if (!this.validateFormData(formData)) return;
@@ -276,23 +262,75 @@ class SEOGenerator {
         this.hideStatus();
         
         try {
+            // Send data to webhook first
+            await this.sendToWebhook(formData);
+            
+            // Then generate and display the matrix
             const matrix = this.generateMatrix(formData);
             this.currentMatrix = matrix;
             this.displayMatrix(matrix);
             this.showResults();
-            this.showStatus('Matrix generated successfully!', 'success');
+            this.showStatus('Matrix generated successfully and data sent to webhook!', 'success');
         } catch (error) {
-            this.showStatus('Error generating matrix: ' + error.message, 'error');
+            console.error('handleFormSubmit error:', error);
+            this.showStatus('Error: ' + error.message, 'error');
         } finally {
             this.showLoading(false);
         }
     }
     
+    async sendToWebhook(formData) {
+        const webhookUrl = 'https://bsmteam.app.n8n.cloud/webhook-test/9e3a84b1-42e9-416b-9c73-a3cf329138d4';
+        
+        const payload = [
+            {
+                "selection": formData.promptType || "",
+                "keyword": "",
+                "location": formData.cityState || "",
+                "company_name": formData.companyName || "",
+                "company_url": formData.websiteUrl || "",
+                "wp_username": formData.wpUsername || "",
+                "wp_password": formData.wpPassword || ""
+            }
+        ];
+        
+        console.log('Sending payload to webhook:', payload);
+        
+        try {
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            console.log('Webhook response:', result);
+            
+        } catch (error) {
+            console.error('Webhook error:', error);
+            console.warn('Webhook failed, but continuing with matrix generation');
+        }
+    }
+    
     getFormData() {
+        const getData = (id) => {
+            const element = document.getElementById(id);
+            return element ? element.value.trim() : '';
+        };
+        
         return {
-            promptType: this.promptTypeSelect.value.trim(),
-            cityState: document.getElementById('cityState').value.trim(),
-            websiteUrl: document.getElementById('websiteUrl').value.trim(),
+            promptType: this.promptTypeSelect ? this.promptTypeSelect.value.trim() : '',
+            cityState: getData('cityState'),
+            companyName: getData('companyName'),
+            websiteUrl: getData('websiteUrl'),
+            wpUsername: getData('wpUsername'),
+            wpPassword: getData('wpPassword'),
             keywords: this.loadedKeywords
         };
     }
@@ -308,8 +346,23 @@ class SEOGenerator {
             return false;
         }
         
+        if (!data.companyName) {
+            this.showStatus('Please enter company name', 'error');
+            return false;
+        }
+        
         if (!data.websiteUrl) {
             this.showStatus('Please enter your website URL', 'error');
+            return false;
+        }
+        
+        if (!data.wpUsername) {
+            this.showStatus('Please enter WordPress username', 'error');
+            return false;
+        }
+        
+        if (!data.wpPassword) {
+            this.showStatus('Please enter WordPress password', 'error');
             return false;
         }
         
@@ -378,6 +431,8 @@ class SEOGenerator {
     }
     
     displayMatrix(matrix) {
+        if (!this.matrixPreview) return;
+        
         if (matrix.length === 0) {
             this.matrixPreview.innerHTML = '<p>No data generated</p>';
             return;
@@ -413,84 +468,37 @@ class SEOGenerator {
             return;
         }
         
-        const websiteUrl = document.getElementById('websiteUrl').value.trim();
-        const apiEndpoint = '/api/generate-pages';
-        
-        try {
-            this.showStatus('Generating pages on your website...', 'info');
-            
-            const requestData = {
-                matrix: this.currentMatrix,
-                websiteUrl: websiteUrl,
-                promptType: this.promptTypeSelect.value,
-                timestamp: new Date().toISOString()
-            };
-            
-            const response = await fetch(apiEndpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                this.showStatus(`Successfully generated ${result.pagesCreated || 'multiple'} pages on your website!`, 'success');
-            } else {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-        } catch (error) {
-            this.showStatus('Error generating pages: ' + error.message, 'error');
-        }
+        this.showStatus('Feature not implemented yet', 'info');
     }
     
-    downloadCSV() {
-        if (this.currentMatrix.length === 0) {
-            this.showStatus('No matrix data to download', 'error');
-            return;
-        }
-        
-        const csvContent = this.currentMatrix.map(row => 
-            [row.city, row.state, row.keyword, row.urlSlug, row.fullUrl || '', row.pageTitle]
-                .map(field => `"${field}"`)
-                .join(',')
-        ).join('\n');
-        
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `seo-matrix-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        this.showStatus('CSV file downloaded successfully!', 'success');
-    }
-    
+    // Utility functions
     showLoading(show) {
+        if (!this.submitBtn) return;
+        
         const btnText = this.submitBtn.querySelector('.btn-text');
         const loader = this.submitBtn.querySelector('.loader');
         
         if (show) {
-            btnText.style.display = 'none';
-            loader.style.display = 'inline-block';
+            if (btnText) btnText.style.display = 'none';
+            if (loader) loader.style.display = 'inline-block';
             this.submitBtn.disabled = true;
         } else {
-            btnText.style.display = 'inline-block';
-            loader.style.display = 'none';
+            if (btnText) btnText.style.display = 'inline-block';
+            if (loader) loader.style.display = 'none';
             this.submitBtn.disabled = false;
         }
     }
     
     showResults() {
-        this.resultsSection.style.display = 'block';
-        this.resultsSection.scrollIntoView({ behavior: 'smooth' });
+        if (this.resultsSection) {
+            this.resultsSection.style.display = 'block';
+            this.resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
     }
     
     showStatus(message, type) {
+        if (!this.statusMessage) return;
+        
         this.statusMessage.textContent = message;
         this.statusMessage.className = `status-message ${type}`;
         this.statusMessage.style.display = 'block';
@@ -501,7 +509,9 @@ class SEOGenerator {
     }
     
     hideStatus() {
-        this.statusMessage.style.display = 'none';
+        if (this.statusMessage) {
+            this.statusMessage.style.display = 'none';
+        }
     }
 }
 
@@ -512,29 +522,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const seoGenerator = new SEOGenerator();
         console.log('SEOGenerator instance created successfully');
-        
         window.seoGenerator = seoGenerator;
-        
     } catch (error) {
         console.error('Error creating SEOGenerator:', error);
         console.error('Error stack:', error.stack);
     }
-    
-    window.loadPromptTypes = function(data) {
-        const event = new CustomEvent('promptTypesData', { detail: data });
-        document.dispatchEvent(event);
-    };
-    
-    window.loadKeywords = function(data) {
-        const event = new CustomEvent('keywordsData', { detail: data });
-        document.dispatchEvent(event);
-    };
-    
-    window.loadGoogleSheetsData = function(spreadsheetUrl) {
-        if (window.seoGenerator) {
-            return window.seoGenerator.fetchGoogleSheetsData(spreadsheetUrl);
-        } else {
-            console.error('SEOGenerator not initialized');
-        }
-    };
 });
