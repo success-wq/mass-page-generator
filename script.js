@@ -1,4 +1,3 @@
-//v3 (referenced to previous v18)
 class SEOGenerator {
     constructor() {
         console.log('SEOGenerator constructor called');
@@ -32,20 +31,10 @@ class SEOGenerator {
         console.log('SEOGenerator init() called');
         
         this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
-        
-        // Only add event listeners if elements exist
-        if (this.generatePagesBtn) {
-            this.generatePagesBtn.addEventListener('click', () => this.generatePages());
-        }
-        if (this.downloadCsvBtn) {
-            this.downloadCsvBtn.addEventListener('click', () => this.downloadCSV());
-        }
-        if (this.darkModeToggle) {
-            this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
-        }
-        if (this.promptTypeSelect) {
-            this.promptTypeSelect.addEventListener('change', () => this.handlePromptTypeChange());
-        }
+        this.generatePagesBtn.addEventListener('click', () => this.generatePages());
+        this.downloadCsvBtn.addEventListener('click', () => this.downloadCSV());
+        this.darkModeToggle.addEventListener('click', () => this.toggleDarkMode());
+        this.promptTypeSelect.addEventListener('change', () => this.handlePromptTypeChange());
         
         console.log('Event listeners attached');
         
@@ -287,68 +276,15 @@ class SEOGenerator {
         this.hideStatus();
         
         try {
-            // Send data to webhook first
-            await this.sendToWebhook(formData);
-            
-            // Then generate and display the matrix
             const matrix = this.generateMatrix(formData);
             this.currentMatrix = matrix;
             this.displayMatrix(matrix);
             this.showResults();
-            this.showStatus('Matrix generated successfully and data sent to webhook!', 'success');
+            this.showStatus('Matrix generated successfully!', 'success');
         } catch (error) {
-            this.showStatus('Error: ' + error.message, 'error');
+            this.showStatus('Error generating matrix: ' + error.message, 'error');
         } finally {
             this.showLoading(false);
-        }
-    }
-    
-    async sendToWebhook(formData) {
-        const webhookUrl = 'https://bsmteam.app.n8n.cloud/webhook-test/9e3a84b1-42e9-416b-9c73-a3cf329138d4';
-        
-        // Get current form data
-        const selection = this.promptTypeSelect.value.trim();
-        const location = document.getElementById('cityState').value.trim();
-        const companyUrl = document.getElementById('websiteUrl').value.trim();
-        const companyName = document.getElementById('companyName').value.trim();
-        const wpUsername = document.getElementById('wpUsername').value.trim();
-        const wpPassword = document.getElementById('wpPassword').value.trim();
-        
-        // Create payload according to expected format
-        const payload = [
-            {
-                "selection": selection,        // actual dropdown value
-                "keyword": "",                 // left blank as requested
-                "location": location,          // actual city+state input
-                "company_name": companyName,   // actual company name input
-                "company_url": companyUrl,     // actual website URL input
-                "wp_username": wpUsername,     // WordPress username
-                "wp_password": wpPassword      // WordPress password
-            }
-        ];
-        
-        console.log('Sending payload to webhook:', payload);
-        
-        try {
-            const response = await fetch(webhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            console.log('Webhook response:', result);
-            
-        } catch (error) {
-            console.error('Webhook error:', error);
-            // Don't throw error here - let the matrix generation continue even if webhook fails
-            console.warn('Webhook failed, but continuing with matrix generation');
         }
     }
     
@@ -356,10 +292,7 @@ class SEOGenerator {
         return {
             promptType: this.promptTypeSelect.value.trim(),
             cityState: document.getElementById('cityState').value.trim(),
-            companyName: document.getElementById('companyName').value.trim(),
             websiteUrl: document.getElementById('websiteUrl').value.trim(),
-            wpUsername: document.getElementById('wpUsername').value.trim(),
-            wpPassword: document.getElementById('wpPassword').value.trim(),
             keywords: this.loadedKeywords
         };
     }
@@ -375,23 +308,8 @@ class SEOGenerator {
             return false;
         }
         
-        if (!data.companyName) {
-            this.showStatus('Please enter company name', 'error');
-            return false;
-        }
-        
         if (!data.websiteUrl) {
             this.showStatus('Please enter your website URL', 'error');
-            return false;
-        }
-        
-        if (!data.wpUsername) {
-            this.showStatus('Please enter WordPress username', 'error');
-            return false;
-        }
-        
-        if (!data.wpPassword) {
-            this.showStatus('Please enter WordPress password', 'error');
             return false;
         }
         
@@ -503,4 +421,120 @@ class SEOGenerator {
             
             const requestData = {
                 matrix: this.currentMatrix,
-                websiteUrl: websiteUrl
+                websiteUrl: websiteUrl,
+                promptType: this.promptTypeSelect.value,
+                timestamp: new Date().toISOString()
+            };
+            
+            const response = await fetch(apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                this.showStatus(`Successfully generated ${result.pagesCreated || 'multiple'} pages on your website!`, 'success');
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            this.showStatus('Error generating pages: ' + error.message, 'error');
+        }
+    }
+    
+    downloadCSV() {
+        if (this.currentMatrix.length === 0) {
+            this.showStatus('No matrix data to download', 'error');
+            return;
+        }
+        
+        const csvContent = this.currentMatrix.map(row => 
+            [row.city, row.state, row.keyword, row.urlSlug, row.fullUrl || '', row.pageTitle]
+                .map(field => `"${field}"`)
+                .join(',')
+        ).join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `seo-matrix-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        this.showStatus('CSV file downloaded successfully!', 'success');
+    }
+    
+    showLoading(show) {
+        const btnText = this.submitBtn.querySelector('.btn-text');
+        const loader = this.submitBtn.querySelector('.loader');
+        
+        if (show) {
+            btnText.style.display = 'none';
+            loader.style.display = 'inline-block';
+            this.submitBtn.disabled = true;
+        } else {
+            btnText.style.display = 'inline-block';
+            loader.style.display = 'none';
+            this.submitBtn.disabled = false;
+        }
+    }
+    
+    showResults() {
+        this.resultsSection.style.display = 'block';
+        this.resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    showStatus(message, type) {
+        this.statusMessage.textContent = message;
+        this.statusMessage.className = `status-message ${type}`;
+        this.statusMessage.style.display = 'block';
+        
+        if (type === 'success') {
+            setTimeout(() => this.hideStatus(), 5000);
+        }
+    }
+    
+    hideStatus() {
+        this.statusMessage.style.display = 'none';
+    }
+}
+
+// Initialize the application
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOMContentLoaded event fired');
+    
+    try {
+        const seoGenerator = new SEOGenerator();
+        console.log('SEOGenerator instance created successfully');
+        
+        window.seoGenerator = seoGenerator;
+        
+    } catch (error) {
+        console.error('Error creating SEOGenerator:', error);
+        console.error('Error stack:', error.stack);
+    }
+    
+    window.loadPromptTypes = function(data) {
+        const event = new CustomEvent('promptTypesData', { detail: data });
+        document.dispatchEvent(event);
+    };
+    
+    window.loadKeywords = function(data) {
+        const event = new CustomEvent('keywordsData', { detail: data });
+        document.dispatchEvent(event);
+    };
+    
+    window.loadGoogleSheetsData = function(spreadsheetUrl) {
+        if (window.seoGenerator) {
+            return window.seoGenerator.fetchGoogleSheetsData(spreadsheetUrl);
+        } else {
+            console.error('SEOGenerator not initialized');
+        }
+    };
+});
