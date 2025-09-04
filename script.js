@@ -292,8 +292,11 @@ class SEOGenerator {
     getFormData() {
         return {
             promptType: this.promptTypeSelect.value.trim(),
+            companyName: document.getElementById('companyName').value.trim(),
             cityState: document.getElementById('cityState').value.trim(),
             websiteUrl: document.getElementById('websiteUrl').value.trim(),
+            wpUsername: document.getElementById('wpUsername').value.trim(),
+            wpPassword: document.getElementById('wpPassword').value.trim(),
             keywords: this.loadedKeywords
         };
     }
@@ -304,6 +307,11 @@ class SEOGenerator {
             return false;
         }
         
+        if (!data.companyName) {
+            this.showStatus('Please enter your company name', 'error');
+            return false;
+        }
+        
         if (!data.cityState) {
             this.showStatus('Please enter city and state', 'error');
             return false;
@@ -311,6 +319,16 @@ class SEOGenerator {
         
         if (!data.websiteUrl) {
             this.showStatus('Please enter your website URL', 'error');
+            return false;
+        }
+        
+        if (!data.wpUsername) {
+            this.showStatus('Please enter your WordPress username', 'error');
+            return false;
+        }
+        
+        if (!data.wpPassword) {
+            this.showStatus('Please enter your WordPress password', 'error');
             return false;
         }
         
@@ -447,28 +465,8 @@ class SEOGenerator {
     }
     
     downloadCSV() {
-        if (this.currentMatrix.length === 0) {
-            this.showStatus('No matrix data to download', 'error');
-            return;
-        }
-        
-        const csvContent = this.currentMatrix.map(row => 
-            [row.city, row.state, row.keyword, row.urlSlug, row.fullUrl || '', row.pageTitle]
-                .map(field => `"${field}"`)
-                .join(',')
-        ).join('\n');
-        
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `seo-matrix-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        this.showStatus('CSV file downloaded successfully!', 'success');
+        // CSV functionality removed - no longer needed
+        this.showStatus('Export functionality has been removed', 'info');
     }
     
     showLoading(show) {
