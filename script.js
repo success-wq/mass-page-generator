@@ -104,6 +104,355 @@ class SEOGenerator {
         const selectedPrompt = this.promptTypeSelect.value;
         
         if (selectedPrompt) {
+            // Check if we have sheets data for this prompt type
+            if (this.sheetsData && this.sheetsData.keywordsMap[selectedPrompt]) {
+                this.loadKeywordsForSelectedPrompt(selectedPrompt);
+            } else {
+                this.showStatus(`Selected prompt type: ${this.formatPromptTypeName(selectedPrompt)}`, 'info');
+                // Keywords will be loaded separately via webhook if sheets data not available
+            }
+        } else {
+            this.keywordsDisplay.style.display = 'none';
+            this.loadedKeywords = [];
+        }
+    }
+    
+    async handleFormSubmit(e) {
+        e.preventDefault();
+        
+        const formData = this.getFormData();
+        if (!this.validateFormData(formData)) return;
+        
+        this.showLoading(true);
+        this.hideStatus();
+        
+        try {
+            const matrix = this.generateMatrix(formData);
+            this.currentMatrix = matrix;
+            this.displayMatrix(matrix);
+            this.showResults();
+            this.showStatus('Matrix generated successfully!', 'success');
+        } catch (error) {
+            this.showStatus('Error generating matrix: ' + error.message, 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+    
+    getFormData() {
+        return {
+            promptType: this.promptTypeSelect.value.trim(),
+            cityState: document.getElementById('cityState').value.trim(),
+            websiteUrl: document.getElementById('websiteUrl').value.trim(),
+            keywords: this.loadedKeywords
+        };
+    }
+    
+    validateFormData(data) {
+        if (!data.promptType) {
+            this.showStatus('Please select a prompt type', 'error');
+            return false;
+        }
+        
+        if (!data.cityState) {
+            this.showStatus('Please enter city and state', 'error');
+            return false;
+        }
+        
+        if (!data.websiteUrl) {
+            this.showStatus('Please enter your website URL', 'error');
+            return false;
+        }
+        
+        if (!data.keywords || data.keywords.length === 0) {
+            this.showStatus('No keywords loaded. Please load keywords via webhook first.', 'error');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    generateMatrix(data) {
+        const { cityState, keywords, websiteUrl } = data;
+        
+        // Parse city and state
+        const cityStateParts = cityState.split(',').map(part => part.trim());
+        const city = cityStateParts[0];
+        const state = cityStateParts[1] || '';
+        
+        // Clean website URL (remove trailing slash)
+        const baseUrl = websiteUrl.replace(/\/$/, '');
+        
+        // Use loaded keywords array
+        const keywordList = keywords;
+        
+        // Generate matrix combinations
+        const matrix = [];
+        
+        // Add header row
+        matrix.push({
+            type: 'header',
+            city: 'City',
+            state: 'State', 
+            keyword: 'Service Keyword',
+            urlSlug: 'URL Slug',
+            fullUrl: 'Full URL',
+            pageTitle: 'Page Title'
+        });
+        
+        // Generate combinations
+        keywordList.forEach(keyword => {
+            const urlSlug = this.generateUrlSlug(city, state, keyword);
+            const fullUrl = `${baseUrl}${urlSlug}`;
+            const pageTitle = this.generatePageTitle(city, state, keyword);
+            
+            matrix.push({
+                type: 'data',
+                city: city,
+                state: state,
+                keyword: keyword,
+                urlSlug: urlSlug,
+                fullUrl: fullUrl,
+                pageTitle: pageTitle
+            });
+        });
+        
+        return matrix;
+    }
+    
+    generateUrlSlug(city, state, keyword) {
+        const cleanCity = city.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        const cleanKeyword = keyword.toLowerCase()
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+            
+        return `/locations/${cleanCity}/${cleanKeyword}`;
+    }
+    
+    generatePageTitle(city, state, keyword) {
+        const capitalizedCity = city.charAt(0).toUpperCase() + city.slice(1).toLowerCase();
+        const capitalizedKeyword = keyword.charAt(0).toUpperCase() + keyword.slice(1).toLowerCase();
+        
+        return `${capitalizedKeyword} in ${capitalizedCity}, ${state}`;
+    }
+    
+    displayMatrix(matrix) {
+        if (matrix.length === 0) {
+            this.matrixPreview.innerHTML = '<p>No data generated</p>';
+            return;
+        }
+        
+        let html = '<div class="matrix-grid" style="grid-template-columns: repeat(6, 1fr);">';
+        
+        matrix.forEach(row => {
+            const isHeader = row.type === 'header';
+            const className = isHeader ? 'matrix-item matrix-header' : 'matrix-item';
+            
+            html += `
+                <div class="${className}">${row.city}</div>
+                <div class="${className}">${row.state}</div>
+                <div class="${className}">${row.keyword}</div>
+                <div class="${className}">${row.urlSlug}</div>
+                <div class="${className}">${row.fullUrl || 'Full URL'}</div>
+                <div class="${className}">${row.pageTitle}</div>
+            `;
+        });
+        
+        html += '</div>';
+        
+        // Add summary
+        const dataRows = matrix.filter(row => row.type === 'data');
+        html += `<p><strong>Total combinations generated: ${dataRows.length}</strong></p>`;
+        
+        this.matrixPreview.innerHTML = html;
+    }
+    
+    async generatePages() {
+        if (this.currentMatrix.length === 0) {
+            this.showStatus('No matrix data to generate pages from', 'error');
+            return;
+        }
+        
+        const websiteUrl = document.getElementById('websiteUrl').value.trim();
+        const apiEndpoint = this.apiEndpoint || '/api/generate-pages';
+        
+        try {
+            this.showStatus('Generating pages on your website...', 'info');
+            
+            const requestData = {
+                matrix: this.currentMatrix,
+                websiteUrl: websiteUrl,
+                promptType: this.promptTypeSelect.value,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Send to backend for processing (Google Sheets connection handled there)
+            const response = await fetch(apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                this.showStatus(`Successfully generated ${result.pagesCreated || 'multiple'} pages on your website!`, 'success');
+                
+                // Send outbound webhook notification if configured
+                await this.notifyPageGeneration(requestData, result);
+                
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            this.showStatus('Error generating pages: ' + error.message, 'error');
+        }
+    }
+    
+    async notifyPageGeneration(requestData, result) {
+        // Send webhook notification about page generation
+        
+        const notificationData = {
+            event: 'pages_generated',
+            matrix_count: this.currentMatrix.length - 1, // Subtract header row
+            website_url: requestData.websiteUrl,
+            prompt_type: requestData.promptType,
+            pages_created: result.pagesCreated,
+            timestamp: requestData.timestamp,
+            status: 'success'
+        };
+        
+        // Send to configured notification webhooks
+        const notificationEndpoints = [
+            // Add your notification webhook URLs here
+            // 'https://your-monitoring-service.com/webhook',
+            // 'https://your-analytics-service.com/webhook'
+        ];
+        
+        for (const endpoint of notificationEndpoints) {
+            try {
+                await this.sendOutboundWebhook(endpoint, notificationData);
+            } catch (error) {
+                console.warn('Failed to send notification webhook:', error);
+            }
+        }
+    }
+    
+    downloadCSV() {
+        if (this.currentMatrix.length === 0) {
+            this.showStatus('No matrix data to download', 'error');
+            return;
+        }
+        
+        // Convert matrix to CSV
+        const csvContent = this.currentMatrix.map(row => 
+            [row.city, row.state, row.keyword, row.urlSlug, row.fullUrl || '', row.pageTitle]
+                .map(field => `"${field}"`)
+                .join(',')
+        ).join('\n');
+        
+        // Create and download file
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `seo-matrix-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        this.showStatus('CSV file downloaded successfully!', 'success');
+    }
+    
+    displayKeywords(keywords) {
+        this.keywordCount.textContent = `${keywords.length} keywords`;
+        
+        const keywordTags = keywords.map(keyword => 
+            `<span class="keyword-tag">${keyword}</span>`
+        ).join('');
+        
+        this.keywordsList.innerHTML = keywordTags;
+        this.keywordsDisplay.style.display = 'block';
+    }
+    
+    loadKeywordsForSelectedPrompt(selectedDocName) {
+        // Load keywords for the selected prompt type from sheets data
+        if (this.sheetsData.keywordsMap[selectedDocName]) {
+            this.loadedKeywords = [...this.sheetsData.keywordsMap[selectedDocName]];
+            this.displayKeywords(this.loadedKeywords);
+            this.showStatus(`Loaded ${this.loadedKeywords.length} keywords for "${selectedDocName}"`, 'success');
+        } else {
+            this.keywordsDisplay.style.display = 'none';
+            this.loadedKeywords = [];
+            this.showStatus(`No keywords found for "${selectedDocName}"`, 'error');
+        }
+    }
+    
+    showLoading(show) {
+        const btnText = this.submitBtn.querySelector('.btn-text');
+        const loader = this.submitBtn.querySelector('.loader');
+        
+        if (show) {
+            btnText.style.display = 'none';
+            loader.style.display = 'inline-block';
+            this.submitBtn.disabled = true;
+        } else {
+            btnText.style.display = 'inline-block';
+            loader.style.display = 'none';
+            this.submitBtn.disabled = false;
+        }
+    }
+    
+    showResults() {
+        this.resultsSection.style.display = 'block';
+        this.resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    showStatus(message, type) {
+        this.statusMessage.textContent = message;
+        this.statusMessage.className = `status-message ${type}`;
+        this.statusMessage.style.display = 'block';
+        
+        // Auto-hide success messages after 5 seconds
+        if (type === 'success') {
+            setTimeout(() => this.hideStatus(), 5000);
+        }
+    }
+    
+    hideStatus() {
+        this.statusMessage.style.display = 'none';
+    }
+    
+    // Legacy methods (keeping for backward compatibility)
+    handlePromptTypesData(data) {
+        this.handlePromptTypesWebhook(data);
+    }
+    
+    handleKeywordsData(data) {
+        this.handleKeywordsWebhook(data);
+    }
+}
+    
+    initDarkMode() {
+        const isDarkMode = localStorage.getItem('darkMode') === 'true';
+        if (isDarkMode) {
+            document.body.classList.add('dark-mode');
+        }
+    }
+    
+    toggleDarkMode() {
+        document.body.classList.toggle('dark-mode');
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        localStorage.setItem('darkMode', isDarkMode);
+    }
+    
+    handlePromptTypeChange() {
+        const selectedPrompt = this.promptTypeSelect.value;
+        
+        if (selectedPrompt) {
             this.showStatus(`Selected prompt type: ${this.formatPromptTypeName(selectedPrompt)}`, 'info');
             // Keywords will be loaded separately via webhook
         } else {
