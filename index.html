@@ -20,7 +20,6 @@
                 </button>
             </div>
         </header>
-
         <div class="form-container">
             <form id="seoForm">
                 <!-- Prompt Type Selection -->
@@ -31,7 +30,6 @@
                     </select>
                     <small>Prompt types will be loaded via webhook</small>
                 </div>
-
                 <!-- City and State Input -->
                 <div class="form-group">
                     <label for="cityState">City + State</label>
@@ -43,7 +41,6 @@
                     >
                     <small>Enter the primary city and state for your service area</small>
                 </div>
-
                 <!-- Website URL Input -->
                 <div class="form-group">
                     <label for="websiteUrl">Website URL</label>
@@ -55,7 +52,27 @@
                     >
                     <small>Enter your website URL where pages will be created</small>
                 </div>
-
+                <!-- WordPress Username and Password -->
+                <div class="form-group">
+                    <label for="wpUsername">WordPress Username</label>
+                    <input 
+                        type="text" 
+                        id="wpUsername" 
+                        placeholder="Enter your WordPress username"
+                        required
+                    >
+                    <small>WordPress admin username for page creation</small>
+                </div>
+                <div class="form-group">
+                    <label for="wpPassword">WordPress Password</label>
+                    <input 
+                        type="password" 
+                        id="wpPassword" 
+                        placeholder="Enter your WordPress password"
+                        required
+                    >
+                    <small>WordPress admin password for page creation</small>
+                </div>
                 <!-- Keywords Display (Auto-populated) -->
                 <div id="keywordsDisplay" class="keywords-display" style="display: none;">
                     <div class="keywords-header">
@@ -65,7 +82,6 @@
                     <div id="keywordsList" class="keywords-list"></div>
                     <small>Keywords are loaded via webhook</small>
                 </div>
-
                 <!-- Submit Button -->
                 <button type="submit" id="submitBtn">
                     <span class="btn-text">Generate Matrix</span>
@@ -73,7 +89,6 @@
                 </button>
             </form>
         </div>
-
         <!-- Results Section -->
         <div id="results" class="results-section" style="display: none;">
             <h2>Generated Keyword-City Matrix</h2>
@@ -84,12 +99,9 @@
                 <button id="downloadCsv" class="secondary-btn">Download CSV</button>
             </div>
         </div>
-
         <!-- Status Messages -->
         <div id="statusMessage" class="status-message" style="display: none;"></div>
     </div>
-
     <script src="script.js"></script>
 </body>
-
 </html>
