@@ -270,7 +270,7 @@ class SEOGenerator {
     }
     
     async sendToWebhook(formData) {
-        const webhookUrl = 'https://bsmteam.app.n8n.cloud/webhook-test/9e3a84b1-42e9-416b-9c73-a3cf329138d4';
+        const webhookUrl = 'https://bsmteam.app.n8n.cloud/webhook/9e3a84b1-42e9-416b-9c73-a3cf329138d4';
         
         const payload = [
             {
@@ -505,3 +505,4 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Error stack:', error.stack);
     }
 });
+
